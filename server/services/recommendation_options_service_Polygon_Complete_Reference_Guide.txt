@@ -1,0 +1,498 @@
+# Polygon.io Options API Complete Reference Guide
+
+## Executive Summary
+
+Polygon.io provides comprehensive U.S. options market data through REST APIs covering all 17 U.S. options exchanges. The platform processes approximately 3TB of options data daily through direct OPRA (Options Price Reporting Authority) connections, providing both real-time snapshots and historical tick-level data.
+
+**Key Capabilities:**
+- Real-time and historical options data
+- Tick-level trades and quotes
+- Greeks, implied volatility, and contract analytics
+- Multi-timeframe aggregates (OHLC bars)
+- Technical indicators
+- Contract reference data
+- Market status and operational information
+
+---
+
+## API Architecture & Data Flow
+
+### Market Coverage
+Data originates from all 17 U.S. options exchanges:
+- NYSE American Options, Boston Options Exchange (BOX)
+- CBOE family (CBOE, EDGX, C2, BZX)
+- Nasdaq family (NOM, PHLX, BX, ISE, GEMX, MRX)
+- MIAX family (Emerald, Pearl, Sapphire)
+- MEMX Options
+
+### Market Hours & Timezone
+- **Regular Market Hours**: Monday-Friday, 9:30 AM to 4:00 PM Eastern Time (ET)
+- **All timestamps**: Standardized to Eastern Time (ET)
+- **Extended Hours**: Limited options trading outside regular sessions
+
+### Data Quality & Compliance
+- Direct OPRA integration ensures official NBBO and trade data
+- Regulatory compliant with exchange licensing agreements
+- High-speed, low-latency infrastructure with co-location
+
+---
+
+## Core Endpoint Categories
+
+## 1. SNAPSHOT ENDPOINTS (Current Day Data)
+
+### 1.1 Option Contract Snapshot
+**Endpoint**: `GET /v3/snapshot/options/{underlyingAsset}/{optionContract}`
+
+**Purpose**: Comprehensive real-time snapshot of a single options contract
+
+**Key Data Points**:
+```json
+{
+  "break_even_price": 171.075,
+  "day": {
+    "change": -1.05,
+    "change_percent": -4.67,
+    "close": 21.4,
+    "high": 22.49,
+    "low": 21.35,
+    "open": 22.49,
+    "previous_close": 22.45,
+    "volume": 37,
+    "vwap": 21.6741
+  },
+  "greeks": {
+    "delta": 0.552,
+    "gamma": 0.007,
+    "theta": -0.019,
+    "vega": 0.727
+  },
+  "implied_volatility": 0.305,
+  "last_quote": {
+    "ask": 21.25,
+    "bid": 20.9,
+    "midpoint": 21.075
+  },
+  "open_interest": 8921,
+  "underlying_asset": {
+    "price": 147.951,
+    "change_to_break_even": 23.124
+  }
+}
+```
+
+**Limitations**:
+- Single contract per request
+- Greeks may not be available for deep ITM/OTM contracts
+- Real-time data requires appropriate plan subscription
+
+### 1.2 Option Chain Snapshot
+**Endpoint**: `GET /v3/snapshot/options/{underlyingAsset}`
+
+**Purpose**: Full options chain for an underlying asset
+
+**Query Parameters**:
+- `strike_price.gte/lte` - Filter by strike range
+- `expiration_date.gte/lte` - Filter by expiration range
+- `contract_type` - Filter by call/put
+- `limit` - Max 250 results per request
+
+**Use Cases**:
+- Market overview analysis
+- Strategy comparison across strikes/expirations
+- Portfolio monitoring
+
+**Limitations**:
+- Maximum 250 contracts per request
+- Pagination required for large option chains
+- Same data structure as single contract snapshot
+
+### 1.3 Unified Snapshot
+**Endpoint**: `GET /v3/snapshot`
+
+**Purpose**: Multi-asset snapshot across stocks, options, forex, crypto
+
+**Key Features**:
+- Up to 250 tickers via `ticker.any_of` parameter
+- Cross-market analysis capability
+- Unified response format across asset classes
+
+**Query Examples**:
+```
+ticker.any_of=AAPL,O:AAPL250117C00150000,SPY
+```
+
+---
+
+## 2. HISTORICAL DATA ENDPOINTS
+
+### 2.1 Trades (Tick-Level)
+**Endpoint**: `GET /v3/trades/{optionsTicker}`
+
+**Purpose**: Granular trade-by-trade historical data
+
+**Data Points Per Trade**:
+```json
+{
+  "exchange": 46,
+  "participant_timestamp": 1401715883806000000,
+  "price": 6.91,
+  "sip_timestamp": 1401715883806000000,
+  "size": 1,
+  "conditions": [209]
+}
+```
+
+**Key Capabilities**:
+- Nanosecond timestamp precision
+- Exchange identification
+- Trade conditions and corrections
+- Price and volume per trade
+
+**Limitations**:
+- Max 50,000 results per request
+- Requires pagination for large datasets
+- Historical data availability varies by subscription
+
+**Optimal Usage**:
+- Intraday analysis and microstructure research
+- Algorithm backtesting
+- Market impact analysis
+
+### 2.2 Quotes (Tick-Level)
+**Endpoint**: `GET /v3/quotes/{optionsTicker}`
+
+**Purpose**: Historical bid/ask quote data
+
+**Data Points Per Quote**:
+```json
+{
+  "ask_exchange": 323,
+  "ask_price": 282,
+  "ask_size": 10,
+  "bid_exchange": 316,
+  "bid_price": 277.5,
+  "bid_size": 1,
+  "sequence_number": 789539218,
+  "sip_timestamp": 1645119125346243600
+}
+```
+
+**Key Capabilities**:
+- Bid/ask spreads and depths
+- Exchange-level quote attribution
+- Sequence numbering for ordering
+- Nanosecond precision
+
+**Limitations**:
+- Max 50,000 results per request
+- Quote-only data (no trade information)
+
+### 2.3 Custom Bars (OHLC Aggregates)
+**Endpoint**: `GET /v2/aggs/ticker/{optionsTicker}/range/{multiplier}/{timespan}/{from}/{to}`
+
+**Purpose**: Aggregated OHLC data with customizable intervals
+
+**Timespan Options**:
+- `second`, `minute`, `hour`, `day`, `week`, `month`, `quarter`, `year`
+
+**Data Structure**:
+```json
+{
+  "c": 26.2,    // Close
+  "h": 26.2,    // High
+  "l": 26.2,    // Low
+  "o": 26.2,    // Open
+  "t": 1632369600000,  // Timestamp
+  "v": 2,       // Volume
+  "vw": 26.2,   // Volume Weighted Average Price
+  "n": 1        // Number of transactions
+}
+```
+
+**Key Features**:
+- Flexible time intervals (e.g., 5-minute bars)
+- Volume and transaction count
+- VWAP calculations
+- Split-adjusted data options
+
+**Limitations**:
+- Max 50,000 base aggregates queried
+- Empty intervals if no qualifying trades
+- Eastern Time timezone only
+
+### 2.4 Previous Day Bar
+**Endpoint**: `GET /v2/aggs/ticker/{optionsTicker}/prev`
+
+**Purpose**: Previous trading day's OHLC summary
+
+**Use Cases**:
+- Baseline comparison
+- Daily reporting
+- Technical analysis setup
+
+### 2.5 Daily Ticker Summary
+**Endpoint**: `GET /v1/open-close/{optionsTicker}/{date}`
+
+**Purpose**: Specific date open/close with pre/post market data
+
+**Additional Data**:
+- Pre-market and after-hours prices
+- Daily volume
+- High/low ranges
+
+---
+
+## 3. TECHNICAL INDICATORS
+
+### Available Indicators:
+1. **Simple Moving Average (SMA)**: `/v1/indicators/sma/{optionsTicker}`
+2. **Exponential Moving Average (EMA)**: `/v1/indicators/ema/{optionsTicker}`
+3. **Relative Strength Index (RSI)**: `/v1/indicators/rsi/{optionsTicker}`
+4. **MACD**: `/v1/indicators/macd/{optionsTicker}`
+
+**Common Parameters**:
+- `timespan` - aggregation window (minute, hour, day, etc.)
+- `window` - calculation period
+- `series_type` - price type (open, high, low, close)
+- `adjusted` - split adjustment option
+
+**Response Structure**:
+```json
+{
+  "values": [
+    {
+      "timestamp": 1517562000016,
+      "value": 140.139
+    }
+  ],
+  "underlying": {
+    "url": "api.polygon.io/v2/aggs/..."
+  }
+}
+```
+
+**MACD Specific**:
+```json
+{
+  "histogram": 38.38,
+  "signal": 106.98,
+  "value": 145.36,
+  "timestamp": 1517562000016
+}
+```
+
+---
+
+## 4. CONTRACT REFERENCE DATA
+
+### 4.1 All Contracts
+**Endpoint**: `GET /v3/reference/options/contracts`
+
+**Purpose**: Comprehensive contract discovery and filtering
+
+**Filter Capabilities**:
+- `underlying_ticker` - Filter by underlying asset
+- `contract_type` - call/put filter
+- `expiration_date.gte/lte` - Date range filters
+- `strike_price.gte/lte` - Strike range filters
+- `expired` - Include/exclude expired contracts
+
+**Response Data**:
+```json
+{
+  "cfi": "OCASPS",
+  "contract_type": "call",
+  "exercise_style": "american",
+  "expiration_date": "2021-11-19",
+  "primary_exchange": "BATO",
+  "shares_per_contract": 100,
+  "strike_price": 85,
+  "ticker": "O:AAPL211119C00085000",
+  "underlying_ticker": "AAPL"
+}
+```
+
+**Limitations**:
+- Max 1,000 results per request
+- Pagination required for large datasets
+
+### 4.2 Contract Overview
+**Endpoint**: `GET /v3/reference/options/contracts/{options_ticker}`
+
+**Purpose**: Detailed specification for single contract
+
+**Additional Data**:
+- CFI codes (ISO 10962)
+- Additional underlyings (for complex contracts)
+- Correction numbers
+
+---
+
+## 5. MARKET OPERATIONS
+
+### 5.1 Market Status
+**Endpoint**: `GET /v1/marketstatus/now`
+
+**Real-time market status across**:
+- Exchanges (NYSE, Nasdaq, OTC)
+- Currencies (Crypto, FX)
+- Index groups (S&P, MSCI, etc.)
+
+### 5.2 Market Holidays
+**Endpoint**: `GET /v1/marketstatus/upcoming`
+
+**Forward-looking holiday calendar**
+
+### 5.3 Exchanges
+**Endpoint**: `GET /v3/reference/exchanges`
+
+**Exchange mapping and metadata**
+
+### 5.4 Condition Codes
+**Endpoint**: `GET /v3/reference/conditions`
+
+**Trade/quote condition interpretation**
+
+---
+
+## GRANULAR DATA CAPABILITIES
+
+### Real-Time Granularity:
+1. **Snapshot Data**:
+   - Current bid/ask with exchange attribution
+   - Last trade details with exchange and conditions
+   - Real-time Greeks and implied volatility
+   - Intraday OHLC with volume
+
+2. **Intraday Movements**:
+   - Access via snapshot for current state
+   - Historical tick data for reconstruction
+   - Custom aggregate bars for any interval
+
+### Historical Granularity:
+1. **Tick-Level Data**:
+   - Individual trades with nanosecond timestamps
+   - Individual quotes with exchange details
+   - Full market depth reconstruction possible
+
+2. **Aggregate Flexibility**:
+   - Any timespan from seconds to years
+   - Custom multipliers (e.g., 5-minute, 15-minute)
+   - Transaction count and VWAP included
+
+---
+
+## RATE LIMITS & BEST PRACTICES
+
+### Request Limits:
+- **Trades/Quotes**: 50,000 results per request
+- **Aggregates**: 50,000 base aggregates per request
+- **Snapshots**: 250 tickers per unified request
+- **Contracts**: 1,000 results per request
+
+### Optimization Strategies:
+
+1. **Bulk Operations**:
+   - Use unified snapshots for multiple tickers
+   - Batch contract lookups
+   - Leverage pagination efficiently
+
+2. **Data Efficiency**:
+   - Request only required fields when possible
+   - Use appropriate time ranges
+   - Cache contract metadata
+
+3. **Real-time Updates**:
+   - Snapshot endpoints for current state
+   - WebSocket streams for continuous updates
+   - Combine with historical data for context
+
+---
+
+## COMMON INTEGRATION PATTERNS
+
+### Pattern 1: Full Market Scan
+```python
+# 1. Get all contracts for underlying
+contracts = get_option_chain("AAPL")
+
+# 2. Batch snapshot requests
+tickers = [contract['ticker'] for contract in contracts[:250]]
+snapshots = unified_snapshot(tickers)
+
+# 3. Filter and analyze
+high_volume_contracts = [s for s in snapshots if s['volume'] > threshold]
+```
+
+### Pattern 2: Historical Analysis
+```python
+# 1. Get tick-level trades
+trades = get_trades("O:AAPL250117C00150000", "2024-01-01", "2024-01-31")
+
+# 2. Generate custom aggregates
+hourly_bars = get_aggregates("O:AAPL250117C00150000", 1, "hour", "2024-01-01", "2024-01-31")
+
+# 3. Calculate technical indicators
+rsi = get_rsi("O:AAPL250117C00150000", window=14)
+```
+
+### Pattern 3: Real-time Monitoring
+```python
+# 1. Get current snapshot
+current = option_contract_snapshot("AAPL", "O:AAPL250117C00150000")
+
+# 2. Compare with historical context
+previous_day = previous_day_bar("O:AAPL250117C00150000")
+
+# 3. Calculate derived metrics
+pnl = calculate_position_pnl(current, previous_day)
+```
+
+---
+
+## LIMITATIONS & CONSIDERATIONS
+
+### Data Availability:
+- Historical depth varies by subscription tier
+- Real-time data requires appropriate licensing
+- Extended hours data limited for options
+
+### Request Constraints:
+- Rate limiting applies per subscription
+- Large datasets require pagination
+- Complex queries may need multiple endpoints
+
+### Market Specifics:
+- Options-specific: Greeks unavailable for deep ITM/OTM
+- Exercise style and expiration nuances
+- Corporate actions affect contract specifications
+
+### Technical Limitations:
+- Eastern Time zone only
+- No WebSocket coverage in this documentation
+- API versioning considerations (v1, v2, v3 endpoints)
+
+---
+
+## RECOMMENDED ARCHITECTURE
+
+### For Snapshot-Heavy Applications:
+1. Use unified snapshots for bulk current data
+2. Cache contract metadata from reference endpoints
+3. Implement efficient pagination for large option chains
+4. Monitor market status for operational decisions
+
+### For Historical Analysis:
+1. Combine tick-level data with aggregates
+2. Use technical indicator endpoints for standard calculations
+3. Implement data caching for frequently accessed periods
+4. Consider storage optimization for large datasets
+
+### For Real-time Trading:
+1. Snapshot endpoints for current state
+2. Historical context from aggregates
+3. Greeks and implied volatility for risk management
+4. Market status monitoring for operational control
+
+This comprehensive guide provides the foundation for understanding Polygon.io's options API capabilities and implementing robust options trading applications with both real-time and historical data requirements.

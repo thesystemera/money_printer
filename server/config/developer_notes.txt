@@ -1,0 +1,5 @@
+--- Model Evolution & System Data Context Notes ---
+
+September 23, 2025: New Portfolio Wide Signals
+- Additional metrics tracking Portfolio / Symbol Signals for Master, Options, Image and Vibe models. May find some gems for confidence.
+---

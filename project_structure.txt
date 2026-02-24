@@ -1,0 +1,43 @@
+MARKET_WIZARD/
+├── .env
+├── client/
+│   ├── .env
+│   ├── node_modules/       # library root
+│   ├── public/
+│   │   ├── index.html
+│   │   └── manifest.json
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── ArticleList.js
+│   │   │   ├── Dashboard.js
+│   │   │   ├── DebugLog.js
+│   │   │   ├── PanelContainer.js
+│   │   │   ├── RecommendationService.js
+│   │   │   ├── SearchBar.js
+│   │   │   ├── SentimentChart.js
+│   │   │   ├── SentimentChartControls.js
+│   │   │   └── Settings.js
+│   │   ├── services/
+│   │   │   ├── apiService.js
+│   │   │   └── socketService.js
+│   │   ├── App.js
+│   │   └── index.js
+│   ├── package.json
+│   └── package-lock.json
+└── server/
+    ├── cache/
+    ├── data/
+    ├── keys/
+    ├── scripts/
+    ├── services/
+    │   ├── cache/
+    │   ├── __init__.py
+    │   ├── analysis_service.py
+    │   ├── api_utils.py
+    │   ├── article_service.py
+    │   ├── cache_service.py
+    │   ├── company_service.py
+    │   ├── config_service.py
+    │   ├── log_service.py
+    │   └── stock_service.py
+    └── app.py

@@ -1,0 +1,276 @@
+"""
+OPTIONS ANALYTICS SERVICE - COMPLETE ARCHITECTURE DESCRIPTOR
+============================================================
+
+SYSTEM OVERVIEW:
+---------------
+Clean three-tier options analytics system that processes current snapshots and historical data
+to provide real-time sentiment analysis, historical context, and predictive insights.
+Built on a unified contract processing pipeline with intelligent data adaptation.
+
+CORE ARCHITECTURE PRINCIPLES:
+-----------------------------
+1. CLEAN PIPELINE: Collect Raw Data → Transform to UnifiedContract Objects → Calculate Baselines → Process → Analyze
+2. HISTORICAL INTELLIGENCE: All thresholds derived from actual market patterns, not constants
+3. DATA AWARENESS: System adapts to available data types (premium/volume/OI/Greeks/IV)
+4. NO BUCKET PRE-PROCESSING: Raw data stays raw, bucket analysis happens on-demand in processing layers
+5. ADAPTER PATTERN: Handle complexity of different API response formats cleanly
+6. THREE-TIER INSIGHTS: Current + Historical + Comparative Intelligence
+
+API DATA SOURCES & MULTIPLE ENDPOINTS:
+======================================
+
+POLYGON API ENDPOINTS USED:
+---------------------------
+
+1. CURRENT SNAPSHOT ENDPOINT:
+   📍 GET /v3/snapshot/options/{symbol}
+   ✅ Returns: Contract volume, open interest, Greeks, implied volatility, bid/ask
+   🎯 Used for: Real-time current analysis
+   📊 Data Quality: High - single API call gets all current data
+
+2. HISTORICAL CONTRACTS ENDPOINT:
+   📍 GET /v3/reference/options/contracts
+   ✅ Returns: Contract definitions (strikes, expirations, tickers) for specific date
+   🎯 Used for: Discovering what contracts existed historically
+   📊 Data Quality: Complete contract universe for date
+
+3. HISTORICAL VOLUME ENDPOINT (Multiple Calls):
+   📍 GET /v2/aggs/ticker/{option_ticker}/range/1/minute/{date}/{date}
+   ✅ Returns: Minute-level volume and pricing data for specific contract
+   🎯 Used for: Historical volume/premium analysis per contract
+   📊 Data Quality: Granular but requires separate call per contract (sampling used)
+
+WHY MULTIPLE API CALLS ARE NECESSARY:
+------------------------------------
+Historical analysis requires BOTH contract definitions AND volume data:
+
+STEP 1: Get Contract Universe
+- API Call: /v3/reference/options/contracts?as_of={date}
+- Returns: ["AAPL_150C_2024-01-19", "AAPL_155C_2024-01-19", ...]
+- Purpose: Know what strikes/expirations existed on historical date
+
+STEP 2: Get Volume Data for Each Contract (Sampled)
+- API Calls: /v2/aggs/ticker/{each_contract}/range/1/minute/{date}/{date}
+- Returns: Minute-level volume/price data per contract
+- Purpose: Calculate historical P/C ratios, premiums, activity levels
+- Optimization: Sample 20% of contracts to reduce API calls (configurable)
+
+WHY ADAPTERS ARE ESSENTIAL:
+--------------------------
+Different endpoints return fundamentally different data structures:
+
+Tier1Adapter (Current Snapshot):
+- Input: Rich snapshot with nested structure (details, day, greeks, last_quote)
+- Transforms: Single API response → Multiple UnifiedContract objects
+- Handles: Bid/ask calculations, Greeks extraction, volume normalization
+
+Tier2Adapter (Historical Data):
+- Input: Contract definitions + Volume data from multiple endpoints
+- Transforms: Combined data from 2+ API calls → UnifiedContract objects
+- Handles: Ticker parsing, volume aggregation, premium calculations
+
+THE CLEAN PIPELINE:
+==================
+
+PHASE 1: RAW DATA COLLECTION (PolygonOptionsClient)
+--------------------------------------------------
+┌────────────────────────────────────────────────────────────┐
+│                    PolygonOptionsClient                    │
+│                                                            │
+│  get_current_options_snapshot(symbol)                      │
+│  ├── fetch_current_options_snapshot()                      │
+│  └── Returns: Raw snapshot data for Tier1Adapter           │
+│                                                            │
+│  get_historical_options_data(symbol, date)                 │
+│  ├── fetch_historical_options_contracts()                  │
+│  ├── sample_contracts_for_volume_data()                    │
+│  ├── fetch_historical_volume_data()                        │
+│  └── Returns: Combined raw data for Tier2Adapter           │
+│                                                            │
+│  get_stock_data(symbol, days)                              │
+│  └── Returns: Minute-level stock prices for embedding      │
+└────────────────────────────────────────────────────────────┘
+
+PHASE 2: DATA TRANSFORMATION (Adapters)
+---------------------------------------
+┌────────────────────────────────────────────────────────────┐
+│                       Adapters                             │
+│                                                            │
+│  Tier1Adapter.transform_contracts_to_unified()             │
+│  ├── Input: Raw snapshot data                              │
+│  ├── Transforms: Nested API structure → UnifiedContract[]  │
+│  └── Capabilities: Volume, OI, Greeks, IV, Premium calc    │
+│                                                            │
+│  Tier2Adapter.transform_contracts_to_unified()             │
+│  ├── Input: Contracts + Volume data (multiple API calls)   │
+│  ├── Transforms: Ticker parsing, volume aggregation        │
+│  └── Capabilities: Volume, Premium proxy calculations      │
+│                                                            │
+│  UnifiedUtils.embed_stock_prices_in_contracts()            │
+│  └── Embeds stock prices by timestamp matching             │
+└────────────────────────────────────────────────────────────┘
+
+UNIFIED CONTRACT OBJECTS:
+------------------------
+Every contract becomes a UnifiedContract with:
+- ticker, contract_type, strike_price, expiration_date, timestamp
+- stock_price (embedded from stock data)
+- volume, open_interest, price, premium
+- delta, gamma, theta, vega, implied_volatility
+- data_source, tier (metadata)
+- NO calculated fields (moneyness, activity_score added later)
+
+PHASE 3: HISTORICAL CONTEXT & BASELINES (HistoricalContext)
+----------------------------------------------------------
+┌────────────────────────────────────────────────────────────┐
+│                   HistoricalContext                        │
+│                                                            │
+│  Input: Historical UnifiedContract[]                       │
+│  ├── filter_contracts_by_time_bucket() - on-demand         │
+│  ├── baseline_calculate_prediction_weighted_ratios()       │
+│  ├── baseline_calculate_volume_distributions()             │
+│  ├── baseline_calculate_volatility_patterns()              │
+│  └── baseline_calculate_activity_thresholds()              │
+│                                                            │
+│  Output: Intelligent baselines for processing              │
+│  ├── Median P/C ratios with prediction weighting           │
+│  ├── Volume distributions by time bucket                   │
+│  ├── ATM range from historical volatility                  │
+│  └── Activity thresholds (5th percentile)                  │
+└────────────────────────────────────────────────────────────┘
+
+PHASE 4: MAIN PROCESSING (UnifiedOptionsProcessor)
+--------------------------------------------------
+┌────────────────────────────────────────────────────────────┐
+│                UnifiedOptionsProcessor                     │
+│                                                            │
+│  Input: Current UnifiedContract[] + HistoricalContext      │
+│                                                            │
+│  calculate_current_metrics()                               │
+│  ├── P/C ratios (volume/premium/OI/delta-weighted)         │
+│  └── Aggregate volumes, premiums by type                   │
+│                                                            │
+│  analyze_unusual_activity()                                │
+│  ├── Historical percentile ranking per contract            │
+│  ├── Vol/OI ratio analysis                                 │
+│  └── Statistical significance scoring                      │
+│                                                            │
+│  calculate_sentiment_scores()                              │
+│  ├── Current ratios vs historical baselines                │
+│  ├── Sigmoid scaling for smooth scoring                    │
+│  └── Adaptive to available data types                      │
+│                                                            │
+│  calculate_gamma_exposure()                                │
+│  ├── Net dealer positioning by strike                      │
+│  └── Volatility regime prediction                          │
+│                                                            │
+│  calculate_moneyness_distribution()                        │
+│  ├── ITM/ATM/OTM bucket analysis                           │
+│  └── Dynamic ATM range from historical volatility          │
+│                                                            │
+│  calculate_max_pain() + calculate_volatility_skew()        │
+│  └── Advanced options analytics when data available        │
+└────────────────────────────────────────────────────────────┘
+
+PHASE 5: CROSS-TIER ANALYSIS (CrossTierAnalyzer)
+------------------------------------------------
+┌────────────────────────────────────────────────────────────┐
+│                  CrossTierAnalyzer                         │
+│                                                            │
+│  analyze_tier3_current_vs_historical()                     │
+│  ├── Current metrics vs historical percentiles             │
+│  ├── Activity level comparisons                            │
+│  └── Baseline deviation analysis                           │
+│                                                            │
+│  analyze_tier3_smart_money_signals()                       │
+│  ├── Institutional flow pattern detection                  │
+│  ├── High conviction vs speculation signals                │
+│  └── Portfolio protection identification                   │
+│                                                            │
+│  analyze_tier3_volatility_regime()                         │
+│  ├── Implied vs realized volatility comparison             │
+│  ├── Volatility regime classification                      │
+│  └── Options pricing efficiency analysis                   │
+└────────────────────────────────────────────────────────────┘
+
+PHASE 6: OUTPUT FORMATTING
+--------------------------
+Final JSON with complete data source transparency and tier-based insights.
+
+API RATE LIMITING & OPTIMIZATION:
+=================================
+
+CURRENT SNAPSHOT: 1 API call
+- Single endpoint provides all current data
+- Cached for 1 hour
+- No rate limiting concerns
+
+HISTORICAL DATA: 2 + N API calls per date
+- 1 call: Get contract definitions
+- 1 call: Sample contracts (20% of total)
+- N calls: Get volume data for sampled contracts
+- Cached for 6 months per date
+- Rate limited with semaphore (50 concurrent)
+- Intelligent sampling reduces API usage by 80%
+
+STOCK DATA: 1 API call via stock service
+- Alpaca integration for minute-level stock data
+- Used for price embedding and volatility calculations
+
+DATA ADAPTATION STRATEGY:
+========================
+
+PREMIUM CALCULATIONS:
+- Tier 1: bid/ask midpoint when available → premium = volume × price × 100
+- Tier 2: volume × avg_price × 100 as premium proxy
+- Fallback: Skip premium-based analysis when unavailable
+
+SENTIMENT ANALYSIS HIERARCHY:
+1. Premium-based P/C ratios (most accurate)
+2. Volume-based P/C ratios (good proxy)
+3. Open Interest ratios (baseline sentiment)
+4. Contract count ratios (last resort)
+
+ACTIVITY SCORING ADAPTATION:
+- Full data: volume×1000 + OI×10 + premium/100
+- Limited data: volume×1000 + fallback calculations
+- Always provides meaningful activity ranking
+
+SYSTEM CAPABILITIES & LIMITATIONS:
+=================================
+
+CURRENT LIMITATIONS (Developer API):
+- No real-time bid/ask quotes
+- Historical Greeks not available
+- Premium calculations limited to available pricing
+- Rate limits require intelligent sampling
+
+SYSTEM STRENGTHS:
+- Adapts intelligently to any available data combination
+- Historical intelligence drives all thresholds and baselines
+- Complete transparency of data sources and reliability
+- Clean pipeline architecture with clear separation of concerns
+- Three-tier insight structure provides actionable intelligence
+- Scales from basic volume analysis to advanced options analytics
+
+KEY FEATURES:
+- Real-time sentiment analysis with historical context
+- Unusual activity detection using statistical significance
+- Gamma exposure analysis for volatility forecasting
+- Smart money flow detection for institutional activity
+- Volatility regime classification for options pricing insights
+- On-demand bucket analysis (no pre-processing)
+- Unified contract processing across all data sources
+
+PROCESSING PERFORMANCE:
+- Current analysis: Real-time processing
+- Historical analysis: Cached (6-month TTL)
+- Comparative analysis: On-demand synthesis
+- API optimization: Sampling + rate limiting + caching
+- Memory efficient: No redundant data storage
+
+This architecture provides a complete, production-ready options analytics solution that
+maximizes insight extraction from available data sources while maintaining complete
+transparency about data limitations, API usage, and analytical reliability.
+"""

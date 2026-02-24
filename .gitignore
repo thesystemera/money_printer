@@ -1,0 +1,63 @@
+# ============================================================
+#  API KEYS & CREDENTIALS  (NEVER commit these)
+# ============================================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+client/.env
+client/.env.local
+client/.env.development.local
+client/.env.test.local
+client/.env.production.local
+server/keys/
+server/config/*.json
+
+# ============================================================
+#  PYTHON
+# ============================================================
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.Python
+
+# ============================================================
+#  NODE / REACT
+# ============================================================
+node_modules/
+client/node_modules/
+client/build/
+npm-debug.log*
+yarn-error.log*
+
+# ============================================================
+#  RUNTIME / GENERATED DATA  (large, machine-specific)
+# ============================================================
+server/cache/
+server/browser_data/
+server/debug/
+dump.rdb
+client/dump.rdb
+*.rdb
+
+# ============================================================
+#  CLAUDE CODE SETTINGS
+# ============================================================
+.claude/
+
+# ============================================================
+#  OS / IDE
+# ============================================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
